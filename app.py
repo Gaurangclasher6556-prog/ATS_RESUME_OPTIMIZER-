@@ -78,6 +78,6 @@ if submit_eval or submit_match:
 # Footer
 st.markdown("---")
 st.markdown(
-    "<p style='text-align: center; font-size: 14px; color: gray;'>© 2025 All rights reserved by <strong>Jeki Panchal</strong></p>",
+    "<p style='text-align: center; font-size: 14px; color: gray;'>© 2025 All rights reserved by <strong>Gaurang Sharma</strong></p>",
     unsafe_allow_html=True
 )
