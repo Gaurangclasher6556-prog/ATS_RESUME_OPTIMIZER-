@@ -171,6 +171,7 @@ with col2:
 st.markdown("""
 <div class="footer">
     <hr>
-    <p>© 2025 ATS Resume Expert | Created with ❤️ by Gaurang Sharma</p>
+    <p>© 2025 ATS Resume Expert | Created  by Gaurang Sharma</p>
 </div>
 """, unsafe_allow_html=True)
+
