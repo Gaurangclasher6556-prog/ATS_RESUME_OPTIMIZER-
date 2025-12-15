@@ -1,8 +1,23 @@
-from dotenv import load_dotenv
-load_dotenv()
+import os
+from pathlib import Path
+
+# Load .env file from the current directory
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).parent / ".env"
+    load_dotenv(dotenv_path=env_path)
+except ImportError:
+    # If python-dotenv is not installed, try to read .env manually
+    env_path = Path(__file__).parent / ".env"
+    if env_path.exists():
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key.strip()] = value.strip().strip('"').strip("'")
 
 import streamlit as st
-import os
 import fitz  # PyMuPDF
 import google.generativeai as genai
 
@@ -10,9 +25,24 @@ import google.generativeai as genai
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 def get_gemini_response(prompt_intro, pdf_text, job_desc):
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    response = model.generate_content([prompt_intro, pdf_text, job_desc])
-    return response.text
+    try:
+        # List available models to see what's accessible
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        # Try to use the first available model
+        if available_models:
+            model_name = available_models[0].split('/')[-1]
+        else:
+            model_name = 'gemini-pro'
+        
+        model = genai.GenerativeModel(model_name)
+        response = model.generate_content([prompt_intro, pdf_text, job_desc])
+        return response.text
+    except Exception as e:
+        # Fallback to gemini-pro
+        model = genai.GenerativeModel('gemini-pro')
+        response = model.generate_content([prompt_intro, pdf_text, job_desc])
+        return response.text
 
 def extract_text_from_pdf(uploaded_file):
     if uploaded_file is not None:
