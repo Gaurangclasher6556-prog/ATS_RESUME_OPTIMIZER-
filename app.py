@@ -25,8 +25,12 @@ import time
 from ai_handler import (
     get_ats_review, get_ats_score,
     extract_resume_structure,
-    optimize_resume_for_jd,
+    optimize_resume_deep,
     personalize_for_company,
+    rebuild_resume,
+    generate_interview_questions,
+    evaluate_interview_answer,
+    generate_interview_report,
 )
 from pdf_generator import generate_ats_pdf, generate_ats_docx
 
@@ -202,12 +206,13 @@ def need_jd():
     return True
 
 # ─── Tabs ─────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📊 ATS Analysis",
-    "✏️ AI Optimizer",
-    "📄 Resume Builder",
+    "🧠 Deep Optimizer",
+    "✨ Resume Rebuilder",
     "🏢 Company Personalizer",
     "🚀 Mass Apply (Batch)",
+    "🎤 Mock Interview",
 ])
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -256,30 +261,43 @@ with tab1:
             st.markdown(st.session_state["score_result"])
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — AI OPTIMIZER
+# TAB 2 — DEEP MULTI-PASS OPTIMIZER (RAG-ENHANCED)
 # ══════════════════════════════════════════════════════════════════════════════
 with tab2:
-    st.markdown("### ✏️ AI Resume Optimizer")
+    st.markdown("### 🧠 Deep Multi-Pass Optimizer")
     st.markdown(
-        '<div class="info-banner">🚀 Our AI rewrites your resume bullets, summary, and keywords '
-        'to maximally match the job description — then generates a download-ready PDF & DOCX.</div>',
+        '<div class="info-banner">🚀 <b>4-Pass AI Pipeline</b> — Unlike basic optimizers, '
+        'our system runs your resume through 4 specialized AI passes: '
+        'Keyword Extraction → Bullet-by-Bullet STAR Rewriting → Summary & Skills Polish '
+        '→ Final ATS Audit. Every single line gets individual attention, powered by a '
+        'knowledge base of proven FAANG resume patterns.</div>',
         unsafe_allow_html=True,
     )
 
-    if st.button("⚡ Optimize My Resume", use_container_width=True, key="btn_optimize"):
+    if st.button("⚡ Deep Optimize My Resume", use_container_width=True, key="btn_deep_optimize"):
         if need_resume() and need_jd():
             pdf_bytes = uploaded_file.read()
             try:
-                with st.status("🔄 Working on your resume...", expanded=True) as status:
-                    st.write("📖 Step 1 / 3 — Reading and parsing your resume...")
+                status_container = st.status("🔄 Running 4-Pass Deep Optimization...", expanded=True)
+                with status_container:
+                    st.write("📖 Parsing your resume structure...")
                     pdf_text = extract_text(pdf_bytes)
                     resume_data = extract_resume_structure(pdf_text)
-                    st.write("✏️ Step 2 / 3 — Optimizing content for the job description...")
-                    optimized = optimize_resume_for_jd(resume_data, job_description)
-                    st.write("📄 Step 3 / 3 — Generating PDF and DOCX files...")
+
+                    progress_placeholder = st.empty()
+
+                    def update_progress(msg):
+                        progress_placeholder.write(msg)
+
+                    optimized = optimize_resume_deep(
+                        resume_data, job_description,
+                        progress_callback=update_progress,
+                    )
+
+                    st.write("📄 Generating PDF and DOCX files...")
                     pdf_out  = generate_ats_pdf(optimized)
                     docx_out = generate_ats_docx(optimized)
-                    status.update(label="✅ Optimization complete!", state="complete")
+                    status_container.update(label="✅ Deep Optimization complete — 4/4 passes done!", state="complete")
 
                 st.session_state["opt_data"]  = optimized
                 st.session_state["opt_pdf"]   = pdf_out
@@ -292,7 +310,7 @@ with tab2:
         opt  = st.session_state["opt_data"]
         orig = st.session_state.get("orig_data", {})
 
-        st.success("🎉 Your optimized resume is ready!")
+        st.success("🎉 Your deep-optimized resume is ready!")
 
         dl1, dl2 = st.columns(2)
         with dl1:
@@ -312,47 +330,83 @@ with tab2:
                 use_container_width=True,
             )
 
-        # Preview changes
-        with st.expander("👁️ Preview Key Changes", expanded=True):
+        # Preview changes — before vs after
+        with st.expander("👁️ Before vs After — Key Changes", expanded=True):
             c1, c2 = st.columns(2)
             with c1:
-                st.markdown("**Original Summary**")
+                st.markdown("**📋 Original Summary**")
                 st.info(orig.get("summary", "—") or "—")
             with c2:
-                st.markdown("**Optimized Summary**")
+                st.markdown("**✅ Optimized Summary**")
                 st.success(opt.get("summary", "—") or "—")
 
+            st.markdown("---")
+
             if opt.get("experience"):
-                st.markdown("**Optimized Experience Bullets** *(first role)*")
-                for b in opt["experience"][0].get("bullets", [])[:4]:
-                    st.markdown(f"• {b}")
+                c3, c4 = st.columns(2)
+                orig_exp = orig.get("experience", [{}])
+                with c3:
+                    st.markdown("**📋 Original Bullets** *(first role)*")
+                    if orig_exp and orig_exp[0].get("bullets"):
+                        for b in orig_exp[0]["bullets"][:4]:
+                            st.markdown(f"• {b}")
+                    else:
+                        st.markdown("*No original bullets available*")
+                with c4:
+                    st.markdown("**✅ Optimized Bullets** *(first role)*")
+                    for b in opt["experience"][0].get("bullets", [])[:4]:
+                        st.markdown(f"• {b}")
+
+            st.markdown("---")
+
+            # Skills comparison
+            if opt.get("skills"):
+                st.markdown("**✅ Optimized Skills**")
+                skills = opt["skills"]
+                if isinstance(skills, dict):
+                    for cat, lst in skills.items():
+                        sk = ", ".join(lst) if isinstance(lst, list) else str(lst)
+                        st.markdown(f"**{cat}:** {sk}")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — ATS RESUME BUILDER
+# TAB 3 — RESUME REBUILDER (Scrappy → Perfect)
 # ══════════════════════════════════════════════════════════════════════════════
 with tab3:
-    st.markdown("### 📄 ATS-Friendly Resume Builder")
+    st.markdown("### ✨ Resume Rebuilder — Scrappy to Perfect")
     st.markdown(
-        '<div class="info-banner">🎨 Converts your existing resume into a clean, '
-        'ATS-optimized format (Jake\'s Resume style — used by top candidates at FAANG). '
-        'Download as PDF or editable DOCX.</div>',
+        '<div class="info-banner">🔮 <b>3-Stage AI Pipeline</b> — Give us your worst, '
+        'most basic, or poorly written resume. Our AI runs it through 3 specialized stages: '
+        'Deep Extraction → Complete STAR Rewrite → Professional Polish. '
+        'Output: a near-perfect, ATS-optimized resume ready to impress.</div>',
         unsafe_allow_html=True,
     )
 
-    if st.button("🏗️ Build ATS Resume", use_container_width=True, key="btn_build"):
+    st.markdown(
+        '<div class="step-badge">💡 No job description needed — this rebuilds your resume from scratch</div>',
+        unsafe_allow_html=True,
+    )
+
+    if st.button("✨ Rebuild My Resume", use_container_width=True, key="btn_rebuild"):
         if need_resume():
             pdf_bytes = uploaded_file.read()
             try:
-                with st.status("🔄 Building your ATS resume...", expanded=True) as status:
-                    st.write("📖 Step 1 / 2 — Extracting resume structure...")
-                    pdf_text    = extract_text(pdf_bytes)
-                    resume_data = extract_resume_structure(pdf_text)
-                    st.write("📄 Step 2 / 2 — Generating ATS-friendly documents...")
-                    pdf_out  = generate_ats_pdf(resume_data)
-                    docx_out = generate_ats_docx(resume_data)
-                    status.update(label="✅ Resume built!", state="complete")
+                status_container = st.status("🔄 Running 3-Stage Resume Rebuild...", expanded=True)
+                with status_container:
+                    pdf_text = extract_text(pdf_bytes)
 
-                st.session_state["build_data"] = resume_data
+                    progress_placeholder = st.empty()
+
+                    def rebuild_progress(msg):
+                        progress_placeholder.write(msg)
+
+                    rebuilt = rebuild_resume(pdf_text, progress_callback=rebuild_progress)
+
+                    st.write("📄 Generating PDF and DOCX files...")
+                    pdf_out  = generate_ats_pdf(rebuilt)
+                    docx_out = generate_ats_docx(rebuilt)
+                    status_container.update(label="✅ Resume rebuilt — 3/3 stages done!", state="complete")
+
+                st.session_state["build_data"] = rebuilt
                 st.session_state["build_pdf"]  = pdf_out
                 st.session_state["build_docx"] = docx_out
             except Exception as e:
@@ -360,39 +414,48 @@ with tab3:
 
     if "build_data" in st.session_state:
         data = st.session_state["build_data"]
-        st.success(f"🎉 ATS resume ready for **{data.get('name', 'you')}**!")
+        st.success(f"🎉 Resume rebuilt for **{data.get('name', 'you')}** — from scrappy to professional!")
 
         dl1, dl2 = st.columns(2)
         with dl1:
             st.download_button(
-                "⬇️ Download ATS PDF",
+                "⬇️ Download Rebuilt PDF",
                 data=st.session_state["build_pdf"],
-                file_name=f"ats_resume_{data.get('name','').replace(' ','_')}.pdf",
+                file_name=f"rebuilt_resume_{data.get('name','').replace(' ','_')}.pdf",
                 mime="application/pdf",
                 use_container_width=True,
             )
         with dl2:
             st.download_button(
-                "⬇️ Download Editable DOCX",
+                "⬇️ Download Rebuilt DOCX",
                 data=st.session_state["build_docx"],
-                file_name=f"ats_resume_{data.get('name','').replace(' ','_')}.docx",
+                file_name=f"rebuilt_resume_{data.get('name','').replace(' ','_')}.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 use_container_width=True,
             )
 
-        with st.expander("🔍 Parsed Resume Preview", expanded=False):
+        with st.expander("👁️ Rebuilt Resume Preview", expanded=True):
+            st.markdown(f"**✍️ Professional Summary:**")
+            st.success(data.get("summary", "—") or "—")
+
+            if data.get("experience"):
+                st.markdown("**💼 Experience Highlights** *(first role)*")
+                exp = data["experience"][0]
+                st.markdown(f"**{exp.get('title', '')}** at **{exp.get('company', '')}**")
+                for b in exp.get("bullets", [])[:5]:
+                    st.markdown(f"• {b}")
+
             col_a, col_b = st.columns(2)
             with col_a:
                 st.markdown(f"**👤 Name:** {data.get('name','—')}")
                 st.markdown(f"**📧 Email:** {data.get('email','—')}")
-                st.markdown(f"**📍 Location:** {data.get('location','—')}")
                 st.markdown(f"**🎓 Education:** {len(data.get('education',[]))} entry/entries")
             with col_b:
                 st.markdown(f"**💼 Experience:** {len(data.get('experience',[]))} role(s)")
                 st.markdown(f"**🚀 Projects:** {len(data.get('projects',[]))} project(s)")
                 skills = data.get("skills", {})
                 skill_count = sum(len(v) for v in skills.values()) if isinstance(skills, dict) else len(skills)
-                st.markdown(f"**🛠️ Skills:** {skill_count} skill(s) detected")
+                st.markdown(f"**🛠️ Skills:** {skill_count} skill(s)")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 4 — COMPANY PERSONALIZER
@@ -562,6 +625,192 @@ with tab5:
                         )
                     except Exception as e:
                         st.error(str(e))
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 6 — MOCK INTERVIEW COACH
+# ══════════════════════════════════════════════════════════════════════════════
+with tab6:
+    st.markdown("### 🎤 AI Mock Interview Coach")
+    st.markdown(
+        '<div class="info-banner">🎯 Practice makes perfect! Our AI generates '
+        'tailored interview questions based on the job description and your resume, '
+        'then evaluates your answers with detailed feedback and scoring. '
+        'Get an ideal answer example for each question.</div>',
+        unsafe_allow_html=True,
+    )
+
+    # Initialize session state for interview
+    if "interview_questions" not in st.session_state:
+        st.session_state["interview_questions"] = None
+    if "interview_current_q" not in st.session_state:
+        st.session_state["interview_current_q"] = 0
+    if "interview_results" not in st.session_state:
+        st.session_state["interview_results"] = []
+    if "interview_pdf_text" not in st.session_state:
+        st.session_state["interview_pdf_text"] = ""
+
+    # Step 1: Generate questions
+    if st.session_state["interview_questions"] is None:
+        if st.button("🎤 Start Mock Interview", use_container_width=True, key="btn_interview"):
+            if need_resume() and need_jd():
+                try:
+                    with st.spinner("🤖 Preparing your interview questions..."):
+                        pdf_text = extract_text(uploaded_file.read())
+                        st.session_state["interview_pdf_text"] = pdf_text
+                        questions = generate_interview_questions(pdf_text, job_description)
+                        st.session_state["interview_questions"] = questions
+                        st.session_state["interview_current_q"] = 0
+                        st.session_state["interview_results"] = []
+                        st.rerun()
+                except Exception as e:
+                    st.error(str(e))
+    else:
+        questions = st.session_state["interview_questions"]
+        current_q = st.session_state["interview_current_q"]
+        results = st.session_state["interview_results"]
+
+        # Progress bar
+        total = len(questions)
+        answered = len(results)
+        st.progress(answered / total, text=f"Question {min(answered + 1, total)} of {total}")
+
+        if current_q < total:
+            q = questions[current_q]
+            cat_emoji = {"behavioral": "💬", "technical": "💻", "situational": "🎭"}.get(
+                q.get("category", ""), "❓"
+            )
+
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, rgba(22,163,74,0.08), rgba(22,163,74,0.04));
+                        border: 1px solid rgba(22,163,74,0.2); border-radius: 12px;
+                        padding: 1.5rem; margin-bottom: 1rem;">
+                <div style="font-size: 0.8rem; color: #16a34a; font-weight: 600; margin-bottom: 0.5rem;">
+                    {cat_emoji} {q.get('category', 'General').upper()} QUESTION — {current_q + 1}/{total}
+                </div>
+                <div style="font-size: 1.15rem; font-weight: 600; color: #1e293b;">
+                    {q['question']}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            answer = st.text_area(
+                "Your Answer:",
+                height=150,
+                placeholder="Type your answer here... Be specific, use examples from your experience.",
+                key=f"answer_{current_q}",
+            )
+
+            col_submit, col_skip = st.columns([3, 1])
+            with col_submit:
+                if st.button("📤 Submit Answer", use_container_width=True, key=f"submit_{current_q}"):
+                    if answer.strip():
+                        try:
+                            with st.spinner("🤖 Evaluating your answer..."):
+                                evaluation = evaluate_interview_answer(
+                                    q["question"], answer,
+                                    job_description,
+                                    st.session_state["interview_pdf_text"],
+                                )
+                            results.append({
+                                "question": q["question"],
+                                "category": q.get("category", ""),
+                                "answer": answer,
+                                "evaluation": evaluation,
+                            })
+                            st.session_state["interview_results"] = results
+                            st.session_state["interview_current_q"] = current_q + 1
+                            st.rerun()
+                        except Exception as e:
+                            st.error(str(e))
+                    else:
+                        st.warning("Please type an answer before submitting.")
+            with col_skip:
+                if st.button("⏭️ Skip", use_container_width=True, key=f"skip_{current_q}"):
+                    results.append({
+                        "question": q["question"],
+                        "category": q.get("category", ""),
+                        "answer": "(Skipped)",
+                        "evaluation": {"score": 0, "grade": "Skipped", "strengths": [],
+                                       "improvements": ["Question was skipped"],
+                                       "ideal_answer": "N/A", "tip": "Try to answer all questions."},
+                    })
+                    st.session_state["interview_results"] = results
+                    st.session_state["interview_current_q"] = current_q + 1
+                    st.rerun()
+
+            # Show previous results
+            if results:
+                st.markdown("---")
+                st.markdown("### 📋 Previous Answers")
+                for i, r in enumerate(results):
+                    ev = r["evaluation"]
+                    score = ev.get("score", 0)
+                    grade = ev.get("grade", "N/A")
+                    score_color = "#16a34a" if score >= 7 else "#eab308" if score >= 5 else "#ef4444"
+
+                    with st.expander(f"Q{i+1}: {r['question'][:60]}... — **{grade}** ({score}/10)", expanded=False):
+                        st.markdown(f"**Your Answer:** {r['answer'][:200]}...")
+                        st.markdown(f"**Score:** <span style='color:{score_color};font-weight:700;'>{score}/10 — {grade}</span>", unsafe_allow_html=True)
+                        if ev.get("strengths"):
+                            st.markdown("**✅ Strengths:** " + ", ".join(ev["strengths"]))
+                        if ev.get("improvements"):
+                            st.markdown("**📈 Improvements:** " + ", ".join(ev["improvements"]))
+                        st.markdown(f"**💡 Ideal Answer:** {ev.get('ideal_answer', 'N/A')}")
+
+        else:
+            # Interview complete — show final report
+            st.balloons()
+            st.markdown("## 🎉 Interview Complete!")
+
+            # Calculate overall score
+            scores = [r["evaluation"].get("score", 0) for r in results if r["evaluation"].get("score", 0) > 0]
+            avg_score = sum(scores) / len(scores) if scores else 0
+
+            # Score display
+            score_color = "#16a34a" if avg_score >= 7 else "#eab308" if avg_score >= 5 else "#ef4444"
+            st.markdown(f"""
+            <div style="text-align:center; padding:2rem; background:linear-gradient(135deg, rgba(22,163,74,0.1), rgba(22,163,74,0.05));
+                        border-radius:16px; margin:1rem 0;">
+                <div style="font-size:3rem; font-weight:700; color:{score_color};">{avg_score:.1f}/10</div>
+                <div style="font-size:1.1rem; color:#475569;">Overall Interview Score</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Detailed results
+            for i, r in enumerate(results):
+                ev = r["evaluation"]
+                score = ev.get("score", 0)
+                grade = ev.get("grade", "N/A")
+                s_color = "#16a34a" if score >= 7 else "#eab308" if score >= 5 else "#ef4444"
+
+                with st.expander(f"Q{i+1}: {r['question'][:60]}... — **{grade}** ({score}/10)", expanded=(score < 7)):
+                    st.markdown(f"**Your Answer:** {r['answer']}")
+                    st.markdown(f"**Score:** <span style='color:{s_color};font-weight:700;'>{score}/10 — {grade}</span>", unsafe_allow_html=True)
+                    if ev.get("strengths"):
+                        st.markdown("**✅ Strengths:** " + ", ".join(ev["strengths"]))
+                    if ev.get("improvements"):
+                        st.markdown("**📈 To Improve:** " + ", ".join(ev["improvements"]))
+                    st.markdown(f"**💡 Ideal Answer:** {ev.get('ideal_answer', 'N/A')}")
+                    if ev.get("tip"):
+                        st.info(f"💡 **Tip:** {ev['tip']}")
+
+            # Generate AI report
+            if st.button("📊 Generate Full Performance Report", use_container_width=True):
+                try:
+                    with st.spinner("🤖 Generating your performance report..."):
+                        report = generate_interview_report(results)
+                    st.markdown("---")
+                    st.markdown(report)
+                except Exception as e:
+                    st.error(str(e))
+
+            # Reset button
+            if st.button("🔄 Start New Interview", use_container_width=True):
+                st.session_state["interview_questions"] = None
+                st.session_state["interview_current_q"] = 0
+                st.session_state["interview_results"] = []
+                st.session_state["interview_pdf_text"] = ""
+                st.rerun()
 
 
 # ─── Footer ──────────────────────────────────────────────────────────────────
