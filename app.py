@@ -145,11 +145,24 @@ if not api_key:
     st.stop()
 genai.configure(api_key=api_key)
 
+# ─── Safe File Reader ─────────────────────────────────────────────────────────
+def safe_read_bytes() -> bytes:
+    """Safely read uploaded file bytes, handling Streamlit's rerun behavior."""
+    if uploaded_file is None:
+        return b""
+    # Always seek to start before reading — this is the critical fix
+    uploaded_file.seek(0)
+    file_bytes = uploaded_file.read()
+    return file_bytes
+
 # ─── PDF Text Extractor (cached) ─────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
 def extract_text(file_bytes: bytes) -> str:
+    if not file_bytes:
+        return ""
     doc = fitz.open(stream=file_bytes, filetype="pdf")
-    return "".join(page.get_text() for page in doc)
+    text = "".join(page.get_text() for page in doc)
+    return text
 
 # ─── Header ──────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -233,9 +246,13 @@ with tab1:
             if need_resume() and need_jd():
                 try:
                     with st.spinner("Analyzing your resume..."):
-                        pdf_text = extract_text(uploaded_file.read())
-                        result = get_ats_review(pdf_text, job_description)
-                    st.session_state["review_result"] = result
+                        pdf_bytes = safe_read_bytes()
+                        pdf_text = extract_text(pdf_bytes)
+                        if not pdf_text.strip():
+                            st.error("❌ Could not extract text from this PDF. It may be image-based or corrupted.")
+                        else:
+                            result = get_ats_review(pdf_text, job_description)
+                            st.session_state["review_result"] = result
                 except Exception as e:
                     st.error(str(e))
 
@@ -244,9 +261,13 @@ with tab1:
             if need_resume() and need_jd():
                 try:
                     with st.spinner("Calculating ATS match score..."):
-                        pdf_text = extract_text(uploaded_file.read())
-                        result = get_ats_score(pdf_text, job_description)
-                    st.session_state["score_result"] = result
+                        pdf_bytes = safe_read_bytes()
+                        pdf_text = extract_text(pdf_bytes)
+                        if not pdf_text.strip():
+                            st.error("❌ Could not extract text from this PDF. It may be image-based or corrupted.")
+                        else:
+                            result = get_ats_score(pdf_text, job_description)
+                            st.session_state["score_result"] = result
                 except Exception as e:
                     st.error(str(e))
 
@@ -276,7 +297,7 @@ with tab2:
 
     if st.button("⚡ Deep Optimize My Resume", use_container_width=True, key="btn_deep_optimize"):
         if need_resume() and need_jd():
-            pdf_bytes = uploaded_file.read()
+            pdf_bytes = safe_read_bytes()
             try:
                 status_container = st.status("🔄 Running 4-Pass Deep Optimization...", expanded=True)
                 with status_container:
@@ -388,7 +409,7 @@ with tab3:
 
     if st.button("✨ Rebuild My Resume", use_container_width=True, key="btn_rebuild"):
         if need_resume():
-            pdf_bytes = uploaded_file.read()
+            pdf_bytes = safe_read_bytes()
             try:
                 status_container = st.status("🔄 Running 3-Stage Resume Rebuild...", expanded=True)
                 with status_container:
@@ -479,7 +500,7 @@ with tab4:
             if not company_name.strip() or not target_role.strip():
                 st.warning("⬅️ Please fill in Company Name and Target Role in the sidebar.")
             else:
-                pdf_bytes = uploaded_file.read()
+                pdf_bytes = safe_read_bytes()
                 try:
                     with st.status(f"🔄 Tailoring your resume for {company_name}...", expanded=True) as status:
                         st.write("📖 Step 1 / 3 — Parsing your resume...")
@@ -570,7 +591,7 @@ with tab5:
             st.dataframe(df.head(3))
 
             if st.button("🚀 Start Batch Optimization", use_container_width=True, type="primary"):
-                pdf_bytes = uploaded_file.read()
+                pdf_bytes = safe_read_bytes()
                 
                 # Check column names
                 required = ["Company", "Role", "Job Description"]
@@ -655,7 +676,8 @@ with tab6:
             if need_resume() and need_jd():
                 try:
                     with st.spinner("🤖 Preparing your interview questions..."):
-                        pdf_text = extract_text(uploaded_file.read())
+                        pdf_bytes = safe_read_bytes()
+                        pdf_text = extract_text(pdf_bytes)
                         st.session_state["interview_pdf_text"] = pdf_text
                         questions = generate_interview_questions(pdf_text, job_description)
                         st.session_state["interview_questions"] = questions

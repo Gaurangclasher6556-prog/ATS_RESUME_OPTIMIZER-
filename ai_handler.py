@@ -177,8 +177,137 @@ Resume text:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  VALIDATION & SAFE MERGE — Ensures no data is ever lost between passes
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _validate_resume(data: dict, original: dict) -> bool:
+    """Check if AI output has all critical fields populated."""
+    if not isinstance(data, dict):
+        return False
+    # Must have name
+    if not data.get("name") or data["name"].strip() == "":
+        return False
+    # Must not have fewer experience entries than original
+    if len(data.get("experience", [])) < len(original.get("experience", [])):
+        return False
+    # Must not have fewer education entries than original
+    if len(data.get("education", [])) < len(original.get("education", [])):
+        return False
+    # Bullets must not be empty on any experience entry that had bullets
+    for i, exp in enumerate(data.get("experience", [])):
+        if i < len(original.get("experience", [])):
+            orig_bullets = original["experience"][i].get("bullets", [])
+            new_bullets = exp.get("bullets", [])
+            if len(orig_bullets) > 0 and len(new_bullets) == 0:
+                return False
+    return True
+
+
+def _safe_merge(ai_output: dict, original: dict) -> dict:
+    """Merge AI output onto original data — original wins for any empty/missing fields."""
+    merged = dict(original)  # start with all original data
+
+    # Personal info: keep original if AI blanked it out
+    for field in ("name", "email", "phone", "linkedin", "github", "location"):
+        ai_val = ai_output.get(field, "")
+        if ai_val and ai_val.strip():
+            merged[field] = ai_val
+        # else: keep original
+
+    # Summary: use AI version only if non-empty
+    if ai_output.get("summary", "").strip():
+        merged["summary"] = ai_output["summary"]
+
+    # Education: keep original structure, only update if AI has same count
+    ai_edu = ai_output.get("education", [])
+    orig_edu = original.get("education", [])
+    if len(ai_edu) >= len(orig_edu) and len(ai_edu) > 0:
+        merged["education"] = ai_edu
+    # else: keep original education
+
+    # Experience: merge bullet-by-bullet — never lose a role
+    ai_exp = ai_output.get("experience", [])
+    orig_exp = original.get("experience", [])
+    merged_exp = []
+    for i in range(max(len(orig_exp), len(ai_exp))):
+        if i < len(ai_exp) and i < len(orig_exp):
+            role = dict(orig_exp[i])  # start with original
+            ai_role = ai_exp[i]
+            # Keep original title, company, location, duration — never change facts
+            role["title"] = orig_exp[i].get("title") or ai_role.get("title", "")
+            role["company"] = orig_exp[i].get("company") or ai_role.get("company", "")
+            role["location"] = orig_exp[i].get("location") or ai_role.get("location", "")
+            role["duration"] = orig_exp[i].get("duration") or ai_role.get("duration", "")
+            # Use AI bullets only if they exist and are non-empty
+            ai_bullets = ai_role.get("bullets", [])
+            if ai_bullets and len(ai_bullets) > 0:
+                role["bullets"] = ai_bullets
+            merged_exp.append(role)
+        elif i < len(orig_exp):
+            merged_exp.append(orig_exp[i])
+        else:
+            merged_exp.append(ai_exp[i])
+    merged["experience"] = merged_exp
+
+    # Projects: same logic
+    ai_proj = ai_output.get("projects", [])
+    orig_proj = original.get("projects", [])
+    merged_proj = []
+    for i in range(max(len(orig_proj), len(ai_proj))):
+        if i < len(ai_proj) and i < len(orig_proj):
+            proj = dict(orig_proj[i])
+            ai_p = ai_proj[i]
+            proj["name"] = orig_proj[i].get("name") or ai_p.get("name", "")
+            proj["technologies"] = orig_proj[i].get("technologies") or ai_p.get("technologies", "")
+            proj["duration"] = orig_proj[i].get("duration") or ai_p.get("duration", "")
+            ai_bullets = ai_p.get("bullets", [])
+            if ai_bullets and len(ai_bullets) > 0:
+                proj["bullets"] = ai_bullets
+            merged_proj.append(proj)
+        elif i < len(orig_proj):
+            merged_proj.append(orig_proj[i])
+        else:
+            merged_proj.append(ai_proj[i])
+    merged["projects"] = merged_proj
+
+    # Skills: use AI version if non-empty, else keep original
+    ai_skills = ai_output.get("skills", {})
+    if ai_skills and (isinstance(ai_skills, dict) and len(ai_skills) > 0):
+        merged["skills"] = ai_skills
+    elif ai_skills and isinstance(ai_skills, list) and len(ai_skills) > 0:
+        merged["skills"] = ai_skills
+
+    # Certifications: keep all — union of original and AI
+    orig_certs = original.get("certifications", [])
+    ai_certs = ai_output.get("certifications", [])
+    if isinstance(orig_certs, list) and isinstance(ai_certs, list):
+        all_certs = list(dict.fromkeys(orig_certs + ai_certs))  # dedupe preserving order
+        merged["certifications"] = all_certs
+    elif ai_certs:
+        merged["certifications"] = ai_certs
+
+    return merged
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  MULTI-PASS DEEP OPTIMIZER (RAG-Enhanced)
 # ═══════════════════════════════════════════════════════════════════════════
+
+_PRESERVE_WARNING = """
+⚠️ CRITICAL RULES — READ BEFORE RESPONDING:
+1. You MUST return the COMPLETE resume JSON with ALL fields populated.
+2. DO NOT delete or empty ANY field. Every field from the input MUST appear in output.
+3. DO NOT remove any experience entries, education entries, or projects.
+4. DO NOT change the candidate's name, email, phone, linkedin, github, location,
+   job titles, company names, institution names, degree names, or dates.
+5. You may ONLY modify: bullet text, summary text, and skills list.
+6. The number of experience entries in output MUST equal the number in input.
+7. The number of education entries in output MUST equal the number in input.
+8. The number of project entries in output MUST equal the number in input.
+9. Every experience entry MUST have at least as many bullets as the original.
+10. DO NOT add fake/fabricated information. Only reframe existing experience.
+"""
+
 
 def deep_pass1_keywords(resume_data: dict, job_description: str) -> dict:
     """Pass 1: Extract JD keywords and map them to resume sections."""
@@ -224,27 +353,28 @@ REFERENCE — WEAK → STRONG TRANSFORMATIONS:
 REFERENCE — POWER VERBS TO USE:
 {get_power_verbs_prompt()}
 """
-    prompt = f"""You are an elite FAANG resume writer. Your task is to rewrite EVERY bullet point in the resume.
+    prompt = f"""You are an elite FAANG resume writer. Your task is to IMPROVE every bullet point.
+
+{_PRESERVE_WARNING}
 
 {kb_context}
 
-RULES:
+BULLET REWRITING RULES:
 1. Start each bullet with a POWER VERB from the reference list above.
 2. Follow the STAR method: Action → Context → Result (with metrics).
-3. Weave in these MISSING KEYWORDS naturally: {json.dumps(keyword_analysis.get('missing_critical', []))}
-4. If the original bullet is vague (like "Worked on X"), completely rewrite it with specifics.
-5. If the original bullet already has metrics, keep them but improve the language.
-6. Add realistic quantification where missing (use reasonable estimates).
-7. Keep each bullet to 1-2 lines max.
-8. NEVER fabricate new jobs, companies, or degrees.
-9. Return the FULL resume JSON with ALL bullets rewritten.
+3. Weave in these MISSING KEYWORDS naturally where relevant: {json.dumps(keyword_analysis.get('missing_critical', []))}
+4. If the original bullet is vague (like "Worked on X"), rewrite with specifics inferred from context.
+5. If the original bullet already has metrics, KEEP them and improve the language.
+6. Keep each bullet to 1-2 lines max.
+7. NEVER fabricate new jobs, companies, or degrees.
+8. DO NOT add unrealistic numbers. Keep quantification reasonable and believable.
 
-Return ONLY valid JSON in the exact same schema as input.
+Return ONLY valid JSON in the EXACT same schema as input with ALL fields preserved.
 
 Job Description:
 {job_description}
 
-Current Resume JSON:
+Current Resume JSON (you MUST preserve all {len(resume_data.get('experience', []))} experience entries, all {len(resume_data.get('education', []))} education entries, all {len(resume_data.get('projects', []))} projects):
 {json.dumps(resume_data, indent=2)}
 """
     raw = _call(prompt)
@@ -256,25 +386,27 @@ def deep_pass3_summary_skills(resume_data: dict, job_description: str, keyword_a
     ats_rules = get_ats_rules_prompt()
     prompt = f"""You are an elite ATS optimization specialist.
 
-TASK: Optimize ONLY the "summary" and "skills" sections of this resume.
-Leave experience, education, projects, and personal info UNCHANGED.
+{_PRESERVE_WARNING}
+
+TASK: Optimize ONLY the "summary" and "skills" fields of this resume.
+You MUST copy ALL other fields (name, email, phone, linkedin, github, location,
+education, experience, projects, certifications) EXACTLY as they are — character for character.
 
 {ats_rules}
 
 SUMMARY RULES:
-1. Write a compelling 2-3 sentence professional summary.
-2. Include the candidate's years of experience, core domain, and top 3-4 skills from the JD.
-3. Include a quantified achievement if possible.
-4. Must contain these keywords: {json.dumps(keyword_analysis.get('suggested_placement', {}).get('summary', []))}
+1. Write a compelling 2-3 sentence professional summary based on their ACTUAL experience.
+2. Include their core domain and top 3-4 skills from the JD.
+3. DO NOT invent achievements they don't have.
+4. Weave in these keywords naturally: {json.dumps(keyword_analysis.get('suggested_placement', {}).get('summary', []))}
 
 SKILLS RULES:
 1. Reorganize skills into clear categories (Languages, Frameworks, Tools, etc.).
-2. Add all missing critical keywords: {json.dumps(keyword_analysis.get('missing_critical', []))}
+2. Add missing keywords ONLY to the skills section: {json.dumps(keyword_analysis.get('missing_critical', []))}
 3. Place the most JD-relevant skills FIRST in each category.
-4. Include both acronyms and full forms where applicable.
-5. Remove outdated or irrelevant skills that don't match the JD.
+4. Keep ALL original skills — do not remove any.
 
-Return ONLY valid JSON in the exact same schema as input.
+Return ONLY valid JSON in the EXACT same schema as input.
 
 Job Description:
 {job_description}
@@ -290,24 +422,24 @@ def deep_pass4_audit(resume_data: dict, job_description: str) -> dict:
     """Pass 4: Final ATS audit — self-verification and fix pass."""
     prompt = f"""You are a strict ATS compliance auditor performing a FINAL quality check.
 
-AUDIT THIS RESUME against the job description and fix ANY remaining issues:
+{_PRESERVE_WARNING}
 
-CHECK 1 — KEYWORD COVERAGE:
-  Scan the JD for every required skill/tool/technology. Verify each one appears
-  at least once in the resume (in summary, bullets, OR skills). If missing, add it.
+AUDIT THIS RESUME and fix ONLY minor issues. DO NOT rewrite content that is already good.
 
-CHECK 2 — BULLET QUALITY:
-  Every bullet must start with a strong action verb and contain a measurable result.
-  Fix any weak bullets that slipped through.
+CHECK 1 — COMPLETENESS:
+  Verify EVERY field is populated. If any field is empty that shouldn't be, flag it.
+  
+CHECK 2 — KEYWORD COVERAGE:
+  Verify critical JD keywords appear in the resume. If any are missing, add them
+  to the skills section ONLY (do not rewrite bullets).
 
 CHECK 3 — CONSISTENCY:
-  Ensure no contradictions, consistent date formats, consistent tense (past for
-  previous roles, present for current role).
+  Ensure consistent date formats and tense (past for previous roles, present for current).
 
-CHECK 4 — ATS FORMATTING:
-  Section headers must be standard: "Summary", "Education", "Experience", "Projects", "Technical Skills".
+CHECK 4 — NO FABRICATION:
+  Remove any information that looks fabricated or unrealistic.
 
-Return the FINAL, polished resume JSON. Only valid JSON, no explanation.
+Return the FINAL resume JSON with ALL fields preserved. Only valid JSON, no explanation.
 
 Job Description:
 {job_description}
@@ -320,22 +452,40 @@ Current Resume JSON:
 
 
 def optimize_resume_deep(resume_data: dict, job_description: str, progress_callback=None) -> dict:
-    """Full multi-pass deep optimization pipeline."""
+    """Full multi-pass deep optimization pipeline with validation and safe merging."""
+    original = dict(resume_data)  # Preserve the original throughout
+
     if progress_callback:
         progress_callback("🔍 Pass 1/4 — Extracting keywords & analyzing gaps...")
     keyword_analysis = deep_pass1_keywords(resume_data, job_description)
 
     if progress_callback:
         progress_callback("✏️ Pass 2/4 — Rewriting every bullet with STAR method...")
-    resume_v2 = deep_pass2_bullets(resume_data, job_description, keyword_analysis)
+    try:
+        raw_v2 = deep_pass2_bullets(resume_data, job_description, keyword_analysis)
+        resume_v2 = _safe_merge(raw_v2, original)
+    except Exception:
+        resume_v2 = original  # fallback: keep original if pass fails
 
     if progress_callback:
         progress_callback("📝 Pass 3/4 — Optimizing summary & skills sections...")
-    resume_v3 = deep_pass3_summary_skills(resume_v2, job_description, keyword_analysis)
+    try:
+        raw_v3 = deep_pass3_summary_skills(resume_v2, job_description, keyword_analysis)
+        resume_v3 = _safe_merge(raw_v3, resume_v2)
+    except Exception:
+        resume_v3 = resume_v2  # fallback
 
     if progress_callback:
         progress_callback("🔎 Pass 4/4 — Final ATS audit & quality check...")
-    resume_final = deep_pass4_audit(resume_v3, job_description)
+    try:
+        raw_v4 = deep_pass4_audit(resume_v3, job_description)
+        resume_final = _safe_merge(raw_v4, resume_v3)
+    except Exception:
+        resume_final = resume_v3  # fallback
+
+    # Final safety: validate the result, fallback to original if garbage
+    if not _validate_resume(resume_final, original):
+        resume_final = _safe_merge(resume_final, original)
 
     return resume_final
 
@@ -385,19 +535,23 @@ REFERENCE — WEAK → STRONG TRANSFORMATIONS:
 POWER VERBS TO USE:
 {get_power_verbs_prompt()}
 """
-    prompt = f"""You are a world-class resume writer hired to completely transform this resume.
+    prompt = f"""You are a world-class resume writer hired to improve this resume.
+
+{_PRESERVE_WARNING}
 
 {kb_context}
 
 YOUR MISSION:
-1. REWRITE every single bullet point using the STAR method (Action → Context → Result).
+1. REWRITE every bullet point using the STAR method (Action → Context → Result).
 2. START each bullet with a power verb from the reference list.
-3. ADD realistic quantification to EVERY bullet (percentages, dollar amounts, user counts, time saved).
-4. WRITE a compelling professional summary (2-3 sentences) that highlights their strongest qualifications.
+3. ADD realistic quantification where possible — but ONLY believable numbers.
+4. WRITE a compelling professional summary (2-3 sentences) based on their ACTUAL qualifications.
 5. REORGANIZE skills into clean categories.
-6. EXPAND thin sections — if experience has only 1-2 weak bullets, expand to 3-4 strong ones based on implied responsibilities.
-7. NEVER invent new jobs, companies, degrees, or certifications.
-8. Make everything sound professional, confident, and achievement-oriented.
+6. DO NOT invent new jobs, companies, degrees, certifications, or technologies the person doesn't have.
+7. DO NOT add unrealistic metrics. If unsure, describe the impact qualitatively.
+8. You MUST keep ALL {len(resume_data.get('experience', []))} experience entries,
+   ALL {len(resume_data.get('education', []))} education entries,
+   ALL {len(resume_data.get('projects', []))} projects.
 
 Return ONLY valid JSON in the same schema. No explanation.
 
@@ -412,6 +566,8 @@ def polish_resume(resume_data: dict) -> dict:
     """Stage 3: Final polish — consistency, grammar, professional tone."""
     prompt = f"""You are a professional editor performing a FINAL polish on this resume.
 
+{_PRESERVE_WARNING}
+
 TASKS:
 1. Fix any grammar or spelling errors.
 2. Ensure consistent formatting (date formats, capitalization, punctuation).
@@ -420,9 +576,9 @@ TASKS:
 5. Ensure skills are properly categorized and deduplicated.
 6. Remove any filler words or unnecessary adjectives from bullets.
 7. Verify every bullet starts with a strong action verb.
-8. Ensure the overall tone is confident and professional.
+8. Remove any fabricated-looking information or unrealistic numbers.
 
-Return ONLY valid JSON. No explanation.
+Return ONLY valid JSON with ALL fields preserved. No explanation.
 
 Resume JSON:
 {json.dumps(resume_data, indent=2)}
@@ -432,18 +588,30 @@ Resume JSON:
 
 
 def rebuild_resume(pdf_text: str, progress_callback=None) -> dict:
-    """Full 3-stage resume rebuilder pipeline."""
+    """Full 3-stage resume rebuilder pipeline with safe merge."""
     if progress_callback:
         progress_callback("🔍 Stage 1/3 — Deep extraction from your resume...")
     extracted = deep_extract_resume(pdf_text)
 
     if progress_callback:
         progress_callback("✏️ Stage 2/3 — Rewriting with STAR method & power verbs...")
-    rewritten = rewrite_resume_content(extracted)
+    try:
+        raw_rewritten = rewrite_resume_content(extracted)
+        rewritten = _safe_merge(raw_rewritten, extracted)
+    except Exception:
+        rewritten = extracted  # fallback
 
     if progress_callback:
         progress_callback("✨ Stage 3/3 — Final polish & quality check...")
-    polished = polish_resume(rewritten)
+    try:
+        raw_polished = polish_resume(rewritten)
+        polished = _safe_merge(raw_polished, rewritten)
+    except Exception:
+        polished = rewritten  # fallback
+
+    # Final safety check
+    if not _validate_resume(polished, extracted):
+        polished = _safe_merge(polished, extracted)
 
     return polished
 
