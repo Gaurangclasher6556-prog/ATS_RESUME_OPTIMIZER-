@@ -672,14 +672,32 @@ with tab6:
 
     # Step 1: Generate questions
     if st.session_state["interview_questions"] is None:
+        st.markdown("#### Interview Settings")
+        interview_round = st.selectbox(
+            "Select Interview Stage",
+            [
+                "Round 1: Data Structures & Algorithms (DSA)",
+                "Round 2: System Design / Architecture",
+                "Round 3: Technical Deep Dive & Core CS",
+                "Final Round: Behavioral & Leadership / Culture Fit",
+                "Mixed Round (DSA + Behavioral)"
+            ],
+            help="Tailors the mock interview questions to the specific type of interview."
+        )
         if st.button("🎤 Start Mock Interview", use_container_width=True, key="btn_interview"):
             if need_resume() and need_jd():
                 try:
-                    with st.spinner("🤖 Preparing your interview questions..."):
+                    with st.spinner(f"🤖 Preparing {company_name or 'your'} interview questions..."):
                         pdf_bytes = safe_read_bytes()
                         pdf_text = extract_text(pdf_bytes)
                         st.session_state["interview_pdf_text"] = pdf_text
-                        questions = generate_interview_questions(pdf_text, job_description)
+                        questions = generate_interview_questions(
+                            pdf_text, 
+                            job_description, 
+                            company_name, 
+                            target_role, 
+                            interview_round
+                        )
                         st.session_state["interview_questions"] = questions
                         st.session_state["interview_current_q"] = 0
                         st.session_state["interview_results"] = []

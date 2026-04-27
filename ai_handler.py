@@ -673,30 +673,31 @@ def rebuild_resume(pdf_text: str, progress_callback=None) -> dict:
 #  MOCK INTERVIEW COACH
 # ═══════════════════════════════════════════════════════════════════════════
 
-def generate_interview_questions(pdf_text: str, job_description: str) -> list:
-    """Generate 5 tailored interview questions based on resume + JD."""
-    prompt = f"""You are a senior hiring manager preparing to interview a candidate.
-Based on their resume and the job description, generate exactly 5 interview questions.
+def generate_interview_questions(pdf_text: str, job_description: str, company: str, role: str, round_name: str) -> list:
+    """Generate 5 tailored interview questions based on resume + JD + target company & round."""
+    prompt = f"""You are a senior technical interviewer at {company if company else 'a top tech company'} interviewing a candidate for the {role if role else 'Software Engineer'} position.
+Based on their resume, the job description, and the typical interview process at {company if company else 'this company'}, generate exactly 5 interview questions for their '{round_name}'.
 
-MIX:
-- 2 behavioral questions (about past experiences, teamwork, challenges)
-- 2 technical questions (specific to the role's required skills)
-- 1 situational question (hypothetical scenario they might face in this role)
+GUIDELINES FOR ROUND: '{round_name}'
+- If it involves Data Structures & Algorithms (DSA), provide Leetcode-style algorithmic questions (e.g., Arrays, Graphs, Dynamic Programming) suited for {company if company else 'FAANG'}.
+- If it involves System Design, provide highly scalable architecture questions (e.g., "Design a rate limiter", "Design a highly available distributed cache").
+- If it involves Behavioral/Culture Fit, provide deep-dives into their past projects using the STAR method, focusing on conflict resolution, leadership, and ownership.
+- Make the questions difficult, realistic, and highly specific to the candidate's resume and the job description.
 
 For each question, also provide:
-- "category": "behavioral" | "technical" | "situational"
-- "what_to_look_for": brief note on what a great answer would include
+- "category": "dsa" | "system_design" | "behavioral" | "technical_deep_dive"
+- "what_to_look_for": A brief note on what an optimal answer entails (e.g., time/space complexity, trade-offs, STAR method).
 
 Return as a JSON array:
 [
   {{
-    "question": "Tell me about...",
-    "category": "behavioral",
-    "what_to_look_for": "Look for specific STAR format..."
+    "question": "Design a scalable key-value store...",
+    "category": "system_design",
+    "what_to_look_for": "Look for consistent hashing, replication strategies, and handling node failures."
   }}
 ]
 
-Return ONLY valid JSON array.
+Return ONLY a valid JSON array.
 
 Resume:
 {pdf_text}
@@ -705,7 +706,7 @@ Job Description:
 {job_description}
 """
     raw = _call(prompt)
-    return json.loads(re.sub(r"^```(?:json)?\s*", "", raw.strip()).rstrip("`").strip())
+    return _parse_json(raw)
 
 
 def evaluate_interview_answer(question: str, answer: str, job_description: str, resume_text: str) -> dict:
