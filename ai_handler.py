@@ -3,9 +3,11 @@ ai_handler.py – All Gemini AI interactions for the ATS Resume Expert app.
 Includes: Multi-Pass Deep Optimizer, Mock Interview, Resume Rebuilder.
 """
 
+import os
 import json
 import re
 import google.generativeai as genai
+from openai import OpenAI
 from resume_knowledge_base import (
     get_full_knowledge_context,
     get_weak_to_strong_prompt,
@@ -36,34 +38,65 @@ def get_best_model() -> str:
     return "gemini-1.5-flash"
 
 
-def _call(prompt: str) -> str:
-    """Single-prompt Gemini call."""
+# ─── Fallback LLM Implementations ────────────────────────────────────────────
+
+def _call_groq(prompt: str) -> str:
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        raise Exception("GROQ_API_KEY not found.")
+    client = OpenAI(api_key=groq_api_key, base_url="https://api.groq.com/openai/v1")
+    # Llama 3 is fast and reliable for text processing
+    response = client.chat.completions.create(
+        model="llama3-8b-8192", 
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.0
+    )
+    return response.choices[0].message.content
+
+def _call_openrouter(prompt: str) -> str:
+    or_api_key = os.getenv("OPENROUTER_API_KEY")
+    if not or_api_key:
+        raise Exception("OPENROUTER_API_KEY not found.")
+    client = OpenAI(api_key=or_api_key, base_url="https://openrouter.ai/api/v1")
+    # Using a fast reliable model on OpenRouter, like Google's Gemini Flash via OpenRouter
+    response = client.chat.completions.create(
+        model="google/gemini-2.5-flash-lite-preview",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.0
+    )
+    return response.choices[0].message.content
+
+def _call_with_fallback(prompt: str, original_parts=None) -> str:
+    """Try Gemini, then Groq, then OpenRouter."""
     try:
         model = genai.GenerativeModel(
             model_name=get_best_model(),
             generation_config=genai.GenerationConfig(temperature=0.0)
         )
-        response = model.generate_content(prompt)
+        # Use original_parts if provided (for Gemini's native multi-part support), else use prompt
+        response = model.generate_content(original_parts if original_parts else prompt)
         return response.text
     except Exception as e:
         if "429" in str(e) or "ResourceExhausted" in str(e) or "quota" in str(e).lower():
-            raise Exception("⏳ **Google API Quota Exceeded.** The free tier allows 15 requests per minute. Please wait 60 seconds and try again!")
+            print(f"Gemini quota exceeded. Falling back to Groq...")
+            try:
+                return _call_groq(prompt)
+            except Exception as e2:
+                print(f"Groq failed. Falling back to OpenRouter...")
+                try:
+                    return _call_openrouter(prompt)
+                except Exception as e3:
+                    raise Exception(f"⏳ **All APIs Failed.** Please wait and try again. (Gemini/Groq/OpenRouter exhausted)")
         raise Exception(f"API Error: {e}")
 
+def _call(prompt: str) -> str:
+    """Single-prompt Gemini call with fallback."""
+    return _call_with_fallback(prompt)
 
 def _call_parts(parts: list) -> str:
-    """Multi-part Gemini call."""
-    try:
-        model = genai.GenerativeModel(
-            model_name=get_best_model(),
-            generation_config=genai.GenerationConfig(temperature=0.0)
-        )
-        response = model.generate_content(parts)
-        return response.text
-    except Exception as e:
-        if "429" in str(e) or "ResourceExhausted" in str(e) or "quota" in str(e).lower():
-            raise Exception("⏳ **Google API Quota Exceeded.** The free tier allows 15 requests per minute. Please wait 60 seconds and try again!")
-        raise Exception(f"API Error: {e}")
+    """Multi-part Gemini call with fallback."""
+    prompt_str = "\\n\\n".join([str(p) for p in parts])
+    return _call_with_fallback(prompt_str, original_parts=parts)
 
 
 def _parse_json(raw: str) -> dict:
