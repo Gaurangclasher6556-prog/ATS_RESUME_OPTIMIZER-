@@ -695,7 +695,7 @@ COMPANY INTERVIEW RESEARCH (Use this to strictly tailor the questions to what th
 
 
 GUIDELINES FOR ROUND: '{round_name}'
-- If it involves Data Structures & Algorithms (DSA), provide literal Leetcode-style algorithmic problem descriptions. Include the Problem Statement, Example 1, Example 2, and Constraints.
+- If it involves Data Structures & Algorithms (DSA), provide literal Leetcode-style algorithmic problem descriptions. Include the Problem Statement, EXACTLY 3 explicit Examples/Test cases (Example 1, Example 2, Example 3) with Inputs and Outputs, and Constraints.
 - If it involves System Design, provide highly scalable architecture questions (e.g., "Design a rate limiter") and specify the exact constraints (e.g., "10M DAU, 500ms latency requirement").
 - If it involves Behavioral/Culture Fit, provide deep-dives into their past projects using the STAR method.
 - Make the questions difficult, realistic, and highly specific to the candidate's resume and the job description.
@@ -774,7 +774,7 @@ Return ONLY a valid JSON object matching this schema:
     "status": "Success" | "Syntax Error" | "Runtime Error" | "Wrong Answer",
     "passed": <int from 0 to 3>,
     "total": 3,
-    "terminal_output": "A raw string simulating terminal output. Include tracebacks if it failed, or 'Test Cases Passed: 3/3\\nExecution Time: 42ms' if it succeeded."
+    "terminal_output": "A raw string simulating terminal output showing the 3 test cases, actual outputs, and expected outputs. VERY IMPORTANT: Use properly escaped newlines (\\\\n) and escape double quotes so this string does not break JSON parsing."
 }}
 """
     raw = _call(prompt)
