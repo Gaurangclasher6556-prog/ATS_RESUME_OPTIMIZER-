@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import Editor from "@monaco-editor/react";
+import dynamic from "next/dynamic";
+
+// Dynamically import Monaco Editor to prevent it from bloating the Vercel Serverless Function (fixes the 500MB limit error)
+const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+
 import { Play, CheckCircle, TerminalSquare, RotateCcw, AlertTriangle } from "lucide-react";
 import {
   ResizableHandle,
