@@ -679,21 +679,21 @@ def generate_interview_questions(pdf_text: str, job_description: str, company: s
 Based on their resume, the job description, and the typical interview process at {company if company else 'this company'}, generate exactly 5 interview questions for their '{round_name}'.
 
 GUIDELINES FOR ROUND: '{round_name}'
-- If it involves Data Structures & Algorithms (DSA), provide Leetcode-style algorithmic questions (e.g., Arrays, Graphs, Dynamic Programming) suited for {company if company else 'FAANG'}.
-- If it involves System Design, provide highly scalable architecture questions (e.g., "Design a rate limiter", "Design a highly available distributed cache").
-- If it involves Behavioral/Culture Fit, provide deep-dives into their past projects using the STAR method, focusing on conflict resolution, leadership, and ownership.
+- If it involves Data Structures & Algorithms (DSA), provide literal Leetcode-style algorithmic problem descriptions. Include the Problem Statement, Example 1, Example 2, and Constraints.
+- If it involves System Design, provide highly scalable architecture questions (e.g., "Design a rate limiter") and specify the exact constraints (e.g., "10M DAU, 500ms latency requirement").
+- If it involves Behavioral/Culture Fit, provide deep-dives into their past projects using the STAR method.
 - Make the questions difficult, realistic, and highly specific to the candidate's resume and the job description.
 
 For each question, also provide:
 - "category": "dsa" | "system_design" | "behavioral" | "technical_deep_dive"
-- "what_to_look_for": A brief note on what an optimal answer entails (e.g., time/space complexity, trade-offs, STAR method).
+- "what_to_look_for": A brief note on what an optimal answer entails (e.g., O(N) time complexity, consistent hashing, or STAR method).
 
 Return as a JSON array:
 [
   {{
-    "question": "Design a scalable key-value store...",
-    "category": "system_design",
-    "what_to_look_for": "Look for consistent hashing, replication strategies, and handling node failures."
+    "question": "Given an array of integers `nums` and an integer `target`, return indices of the two numbers such that they add up to `target`.\\n\\n**Example 1:**\\nInput: nums = [2,7,11,15], target = 9\\nOutput: [0,1]\\n\\n**Constraints:**\\n- `2 <= nums.length <= 10^4`",
+    "category": "dsa",
+    "what_to_look_for": "Look for an O(N) solution using a Hash Map instead of an O(N^2) brute force."
   }}
 ]
 
@@ -711,21 +711,25 @@ Job Description:
 
 def evaluate_interview_answer(question: str, answer: str, job_description: str, resume_text: str) -> dict:
     """Evaluate a candidate's interview answer."""
-    prompt = f"""You are a senior hiring manager evaluating an interview answer.
+    prompt = f"""You are a strict, senior FAANG hiring manager evaluating an interview answer.
 
 Question asked: "{question}"
 
-Candidate's answer: "{answer}"
+Candidate's answer (this may be code, system architecture, or text): 
+"{answer}"
 
-Job Description context: {job_description[:500]}
+EVALUATION GUIDELINES:
+- If the answer is Code (DSA), act as an automated code judge. Dry-run the code against edge cases. Evaluate Time Complexity and Space Complexity. If there are bugs, point them out explicitly.
+- If the answer is System Design, evaluate their choice of database, caching strategy, load balancing, and handling of bottlenecks.
+- If the answer is Behavioral, evaluate their use of the STAR method and communication clarity.
 
 Evaluate the answer and return JSON:
 {{
   "score": <1-10>,
   "grade": "Excellent" | "Good" | "Average" | "Needs Improvement",
-  "strengths": ["what they did well"],
-  "improvements": ["what could be better"],
-  "ideal_answer": "A brief example of what a perfect answer would sound like (2-3 sentences)",
+  "strengths": ["what they did well (e.g. good use of hash maps, clear architecture)"],
+  "improvements": ["what failed or could be better (e.g. O(N^2) instead of O(N), missed edge case)"],
+  "ideal_answer": "Provide the optimal solution (e.g. the optimal code snippet, or the optimal architecture overview)",
   "tip": "One specific, actionable tip for improvement"
 }}
 

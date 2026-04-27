@@ -16,6 +16,7 @@ except ImportError:
                     os.environ[k.strip()] = v.strip().strip('"').strip("'")
 
 import streamlit as st
+from streamlit_ace import st_ace
 import fitz  # PyMuPDF
 import google.generativeai as genai
 import pandas as pd
@@ -716,9 +717,12 @@ with tab6:
 
         if current_q < total:
             q = questions[current_q]
-            cat_emoji = {"behavioral": "💬", "technical": "💻", "situational": "🎭"}.get(
-                q.get("category", ""), "❓"
-            )
+            cat_emoji = {
+                "behavioral": "💬", 
+                "dsa": "💻", 
+                "system_design": "🏛️", 
+                "technical_deep_dive": "🔧"
+            }.get(q.get("category", "behavioral").lower(), "❓")
 
             st.markdown(f"""
             <div style="background: linear-gradient(135deg, rgba(22,163,74,0.08), rgba(22,163,74,0.04));
@@ -733,12 +737,24 @@ with tab6:
             </div>
             """, unsafe_allow_html=True)
 
-            answer = st.text_area(
-                "Your Answer:",
-                height=150,
-                placeholder="Type your answer here... Be specific, use examples from your experience.",
-                key=f"answer_{current_q}",
-            )
+            if q.get('category') == 'dsa':
+                st.markdown("**Write your code below (Python):**")
+                answer = st_ace(
+                    placeholder="def solve(nums, target):\\n    pass",
+                    language="python",
+                    theme="monokai",
+                    font_size=14,
+                    tab_size=4,
+                    min_lines=15,
+                    key=f"answer_ace_{current_q}"
+                )
+            else:
+                answer = st.text_area(
+                    "Your Answer:",
+                    height=150,
+                    placeholder="Type your answer here... Be specific, use examples from your experience, or describe your system architecture clearly.",
+                    key=f"answer_{current_q}",
+                )
 
             col_submit, col_skip = st.columns([3, 1])
             with col_submit:

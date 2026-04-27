@@ -6,3 +6,4 @@ reportlab
 python-docx
 pandas
 openai
+streamlit-ace
