@@ -673,10 +673,26 @@ def rebuild_resume(pdf_text: str, progress_callback=None) -> dict:
 #  MOCK INTERVIEW COACH
 # ═══════════════════════════════════════════════════════════════════════════
 
-def generate_interview_questions(pdf_text: str, job_description: str, company: str, role: str, round_name: str) -> list:
+def research_company_interview_patterns(company: str, role: str, round_name: str) -> str:
+    if not company:
+        return "No specific company provided. Use standard top-tier tech difficulty."
+    prompt = f"""You are an elite Tech Interview Researcher.
+Your task is to recall the most heavily tested concepts, common questions, and actual interview patterns for {company} for the {role} position in the '{round_name}' round.
+Provide a concise, highly specific 150-word profile of what {company} actually asks. (e.g., if it's Google, mention they heavily test Graphs, DP, and Union Find. If Amazon, mention OOD and LPs).
+Return plain text only."""
+    try:
+        return _call(prompt)
+    except Exception:
+        return "Failed to fetch company profile. Proceed with standard FAANG difficulty."
+
+def generate_interview_questions(pdf_text: str, job_description: str, company: str, role: str, round_name: str, research_context: str = "") -> list:
     """Generate 5 tailored interview questions based on resume + JD + target company & round."""
     prompt = f"""You are a senior technical interviewer at {company if company else 'a top tech company'} interviewing a candidate for the {role if role else 'Software Engineer'} position.
 Based on their resume, the job description, and the typical interview process at {company if company else 'this company'}, generate exactly 5 interview questions for their '{round_name}'.
+
+COMPANY INTERVIEW RESEARCH (Use this to strictly tailor the questions to what this company actually asks!):
+{research_context}
+
 
 GUIDELINES FOR ROUND: '{round_name}'
 - If it involves Data Structures & Algorithms (DSA), provide literal Leetcode-style algorithmic problem descriptions. Include the Problem Statement, Example 1, Example 2, and Constraints.
@@ -737,6 +753,33 @@ Return ONLY valid JSON.
 """
     raw = _call(prompt)
     return _parse_json(raw)
+
+
+def simulate_code_run(question: str, code: str) -> dict:
+    """Simulate Python code execution and return terminal output as JSON."""
+    prompt = f"""You are a Python Sandbox execution environment and Code Judge.
+You are evaluating a user's code submission for the following problem:
+Problem: "{question}"
+
+User Code:
+```python
+{code}
+```
+
+Task: Simulate executing this code against 3 distinct, hidden test cases (including edge cases).
+You must output a JSON response that mimics a realistic terminal output, showing the stdout, test case results, and compiler/runtime errors if any.
+
+Return ONLY a valid JSON object matching this schema:
+{{
+    "status": "Success" | "Syntax Error" | "Runtime Error" | "Wrong Answer",
+    "passed": <int from 0 to 3>,
+    "total": 3,
+    "terminal_output": "A raw string simulating terminal output. Include tracebacks if it failed, or 'Test Cases Passed: 3/3\\nExecution Time: 42ms' if it succeeded."
+}}
+"""
+    raw = _call(prompt)
+    return _parse_json(raw)
+
 
 
 def generate_interview_report(results: list) -> str:

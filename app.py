@@ -32,6 +32,8 @@ from ai_handler import (
     generate_interview_questions,
     evaluate_interview_answer,
     generate_interview_report,
+    research_company_interview_patterns,
+    simulate_code_run,
 )
 from pdf_generator import generate_ats_pdf, generate_ats_docx
 
@@ -688,6 +690,9 @@ with tab6:
         if st.button("🎤 Start Mock Interview", use_container_width=True, key="btn_interview"):
             if need_resume() and need_jd():
                 try:
+                    with st.spinner(f"🕵️ Researching {company_name or 'top tech'} interview patterns..."):
+                        research_context = research_company_interview_patterns(company_name, target_role, interview_round)
+
                     with st.spinner(f"🤖 Preparing {company_name or 'your'} interview questions..."):
                         pdf_bytes = safe_read_bytes()
                         pdf_text = extract_text(pdf_bytes)
@@ -697,7 +702,8 @@ with tab6:
                             job_description, 
                             company_name, 
                             target_role, 
-                            interview_round
+                            interview_round,
+                            research_context
                         )
                         st.session_state["interview_questions"] = questions
                         st.session_state["interview_current_q"] = 0
@@ -748,6 +754,29 @@ with tab6:
                     min_lines=15,
                     key=f"answer_ace_{current_q}"
                 )
+                
+                term_key = f"terminal_{current_q}"
+                if term_key not in st.session_state:
+                    st.session_state[term_key] = None
+                    
+                col_run, col_submit, col_skip = st.columns([1.5, 2, 1])
+                
+                with col_run:
+                    if st.button("▶️ Run Test Cases", use_container_width=True, key=f"run_{current_q}"):
+                        if answer.strip():
+                            with st.spinner("Executing code in sandbox..."):
+                                try:
+                                    res = simulate_code_run(q["question"], answer)
+                                    st.session_state[term_key] = res.get("terminal_output", "Execution failed to return output.")
+                                except Exception as e:
+                                    st.session_state[term_key] = f"Sandbox Error: {str(e)}"
+                        else:
+                            st.warning("Write some code first!")
+
+                if st.session_state[term_key]:
+                    st.markdown("💻 **Terminal Output:**")
+                    st.code(st.session_state[term_key], language="bash")
+                    
             else:
                 answer = st.text_area(
                     "Your Answer:",
@@ -755,10 +784,10 @@ with tab6:
                     placeholder="Type your answer here... Be specific, use examples from your experience, or describe your system architecture clearly.",
                     key=f"answer_{current_q}",
                 )
+                col_submit, col_skip = st.columns([3, 1])
 
-            col_submit, col_skip = st.columns([3, 1])
             with col_submit:
-                if st.button("📤 Submit Answer", use_container_width=True, key=f"submit_{current_q}"):
+                if st.button("📤 Submit Final Answer", use_container_width=True, key=f"submit_{current_q}"):
                     if answer.strip():
                         try:
                             with st.spinner("🤖 Evaluating your answer..."):
