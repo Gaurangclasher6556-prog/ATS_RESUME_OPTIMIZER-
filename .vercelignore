@@ -1,0 +1,12 @@
+# Ignore all Python and environment files for Vercel Next.js deployment
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.py
+*.pdf
+*.docx
+*.zip
+.git/
+.gemini/
