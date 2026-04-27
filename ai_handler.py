@@ -4,6 +4,8 @@ Includes: Multi-Pass Deep Optimizer, Mock Interview, Resume Rebuilder.
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv(override=True)
 import json
 import re
 import google.generativeai as genai
