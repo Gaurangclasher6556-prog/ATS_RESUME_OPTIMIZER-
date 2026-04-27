@@ -45,9 +45,9 @@ def _call_groq(prompt: str) -> str:
     if not groq_api_key:
         raise Exception("GROQ_API_KEY not found.")
     client = OpenAI(api_key=groq_api_key, base_url="https://api.groq.com/openai/v1")
-    # Llama 3 is fast and reliable for text processing
+    # Use llama-3.1-8b-instant or llama-3.3-70b-versatile
     response = client.chat.completions.create(
-        model="llama3-8b-8192", 
+        model="llama-3.1-8b-instant", 
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0
     )
@@ -58,9 +58,9 @@ def _call_openrouter(prompt: str) -> str:
     if not or_api_key:
         raise Exception("OPENROUTER_API_KEY not found.")
     client = OpenAI(api_key=or_api_key, base_url="https://openrouter.ai/api/v1")
-    # Using a fast reliable model on OpenRouter, like Google's Gemini Flash via OpenRouter
+    # Using a fast reliable model on OpenRouter, like Google's Gemini 2.5 Flash
     response = client.chat.completions.create(
-        model="google/gemini-2.5-flash-lite-preview",
+        model="google/gemini-2.5-flash",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0
     )
