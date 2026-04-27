@@ -102,11 +102,29 @@ def _call_parts(parts: list) -> str:
 
 
 def _parse_json(raw: str) -> dict:
-    """Strip markdown fences and parse JSON safely."""
+    """Strip markdown fences and conversational text and parse JSON safely."""
+    if not raw or not raw.strip():
+        return {}
+    
     raw = raw.strip()
-    raw = re.sub(r"^```(?:json)?\s*", "", raw)
-    raw = re.sub(r"\s*```$", "", raw)
-    return json.loads(raw.strip())
+    
+    # Extract JSON substring
+    start_obj = raw.find('{')
+    start_arr = raw.find('[')
+    start_idx = min(start_obj, start_arr) if (start_obj != -1 and start_arr != -1) else max(start_obj, start_arr)
+        
+    end_obj = raw.rfind('}')
+    end_arr = raw.rfind(']')
+    end_idx = max(end_obj, end_arr)
+        
+    if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
+        raw = raw[start_idx:end_idx+1]
+        
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"JSON Parse Error. Cleaned raw string was: {raw[:200]}...")
+        return {}
 
 
 # ─── ATS Review & Score ───────────────────────────────────────────────────────
