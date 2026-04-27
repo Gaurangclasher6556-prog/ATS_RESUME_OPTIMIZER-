@@ -677,8 +677,8 @@ def research_company_interview_patterns(company: str, role: str, round_name: str
     if not company:
         return "No specific company provided. Use standard top-tier tech difficulty."
     prompt = f"""You are an elite Tech Interview Researcher.
-Your task is to recall the most heavily tested concepts, common questions, and actual interview patterns for {company} for the {role} position in the '{round_name}' round.
-Provide a concise, highly specific 150-word profile of what {company} actually asks. (e.g., if it's Google, mention they heavily test Graphs, DP, and Union Find. If Amazon, mention OOD and LPs).
+Your task is to recall the most heavily tested, complex, and difficult concepts for {company} for the {role} position in the '{round_name}' round.
+Provide a concise, highly specific 150-word profile of what {company} actually asks. (e.g., if it's Google, mention they heavily test advanced DP, Graph traversals, or Segment Trees. Do NOT suggest basic or easy problems).
 Return plain text only."""
     try:
         return _call(prompt)
@@ -696,9 +696,9 @@ COMPANY INTERVIEW RESEARCH (Use this to strictly tailor the questions to what th
 
 GUIDELINES FOR ROUND: '{round_name}'
 - If it involves Data Structures & Algorithms (DSA), provide literal Leetcode-style algorithmic problem descriptions. Include the Problem Statement, EXACTLY 3 explicit Examples/Test cases (Example 1, Example 2, Example 3) with Inputs and Outputs, and Constraints.
-- If it involves System Design, provide highly scalable architecture questions (e.g., "Design a rate limiter") and specify the exact constraints (e.g., "10M DAU, 500ms latency requirement").
+- If it involves System Design, provide highly scalable architecture questions (e.g., "Design a distributed rate limiter") and specify the exact constraints (e.g., "10M DAU, 500ms latency requirement").
 - If it involves Behavioral/Culture Fit, provide deep-dives into their past projects using the STAR method.
-- Make the questions difficult, realistic, and highly specific to the candidate's resume and the job description.
+- MUST BE RANDOMIZED AND COMPLEX: DO NOT ask easy or generic questions like "Two Sum" or "Reverse a String". Ensure the difficulty is Intermediate to Hard and matches the exact rigor of {company if company else 'a top tech company'}.
 
 For each question, also provide:
 - "category": "dsa" | "system_design" | "behavioral" | "technical_deep_dive"
@@ -756,7 +756,7 @@ Return ONLY valid JSON.
 
 
 def simulate_code_run(question: str, code: str) -> dict:
-    """Simulate Python code execution and return terminal output as JSON."""
+    """Simulate Python code execution and return terminal output as plain text."""
     prompt = f"""You are a Python Sandbox execution environment and Code Judge.
 You are evaluating a user's code submission for the following problem:
 Problem: "{question}"
@@ -767,18 +767,13 @@ User Code:
 ```
 
 Task: Simulate executing this code against 3 distinct, hidden test cases (including edge cases).
-You must output a JSON response that mimics a realistic terminal output, showing the stdout, test case results, and compiler/runtime errors if any.
+Output a realistic terminal log showing the execution. Show what the expected output was vs the actual output. 
+If there are syntax errors or runtime errors, print a realistic Python traceback.
 
-Return ONLY a valid JSON object matching this schema:
-{{
-    "status": "Success" | "Syntax Error" | "Runtime Error" | "Wrong Answer",
-    "passed": <int from 0 to 3>,
-    "total": 3,
-    "terminal_output": "A raw string simulating terminal output showing the 3 test cases, actual outputs, and expected outputs. VERY IMPORTANT: Use properly escaped newlines (\\\\n) and escape double quotes so this string does not break JSON parsing."
-}}
+DO NOT use JSON. Return ONLY the raw terminal output text. Start directly with the terminal output.
 """
     raw = _call(prompt)
-    return _parse_json(raw)
+    return {"terminal_output": raw.strip()}
 
 
 
