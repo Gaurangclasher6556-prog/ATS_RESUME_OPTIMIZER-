@@ -4,7 +4,7 @@ from pathlib import Path
 # ─── Load .env ───────────────────────────────────────────────────────────────
 try:
     from dotenv import load_dotenv
-    load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+    load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
 except ImportError:
     env_path = Path(__file__).parent / ".env"
     if env_path.exists():

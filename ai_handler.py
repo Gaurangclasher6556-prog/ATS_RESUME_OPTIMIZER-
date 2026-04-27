@@ -86,7 +86,7 @@ def _call_with_fallback(prompt: str, original_parts=None) -> str:
                 try:
                     return _call_openrouter(prompt)
                 except Exception as e3:
-                    raise Exception(f"⏳ **All APIs Failed.** Please wait and try again. (Gemini/Groq/OpenRouter exhausted)")
+                    raise Exception(f"⏳ **All APIs Failed.** \nGemini: {e}\nGroq: {e2}\nOpenRouter: {e3}")
         raise Exception(f"API Error: {e}")
 
 def _call(prompt: str) -> str:
