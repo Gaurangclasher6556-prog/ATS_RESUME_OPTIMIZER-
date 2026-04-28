@@ -48,8 +48,9 @@ Explanation: Because nums[0] + nums[1] == 9, we return [0, 1].`,
     setIsRunning(true);
     setTerminalOutput("> Running test cases...");
     try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
       // In production, this points to your FastAPI backend
-      const res = await fetch("http://127.0.0.1:8000/api/run-code", {
+      const res = await fetch(`${baseUrl}/api/run-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: problem.description, code: code }),
@@ -65,7 +66,8 @@ Explanation: Because nums[0] + nums[1] == 9, we return [0, 1].`,
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/evaluate-answer", {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+      const res = await fetch(`${baseUrl}/api/evaluate-answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
