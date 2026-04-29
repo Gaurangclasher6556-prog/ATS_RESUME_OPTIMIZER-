@@ -148,16 +148,27 @@ def get_ats_review(pdf_text: str, job_desc: str) -> str:
 
 def get_ats_score(pdf_text: str, job_desc: str) -> str:
     return _call_parts([
-        """You are an ATS scanner. Analyze this resume against the job description.
-        Provide with clear markdown formatting:
-        ## 📊 ATS Match Score: XX%
-        (give a realistic percentage)
+        """You are an advanced multi-signal ATS scanner. Analyze this resume against the job description.
+        Calculate multiple signals to ensure high accuracy. Provide your analysis with clear markdown formatting:
+        
+        ## 📊 Multi-Signal ATS Score Breakdown
+        - **Keyword Match Score**: XX/100 (Based on required vs found keywords)
+        - **Experience & Impact Score**: XX/100 (Based on relevance of experience and use of metrics)
+        - **Skills & Education Score**: XX/100 (Based on required hard/soft skills and credentials)
+        - **Formatting & Readability Score**: XX/100 (Based on resume structure and clarity)
+        
+        ### 🏆 Final Overall ATS Match Score: XX%
+        (Calculate the realistic weighted average of the above signals)
+
         ## 🔑 Keywords Found
         (comma-separated list of matching keywords)
+        
         ## ❌ Missing Keywords
         (comma-separated list of important missing keywords)
+        
         ## 📈 How to Improve Your Score
-        (specific, numbered suggestions)
+        (specific, numbered suggestions addressing the weakest signals)
+        
         ## 💬 Final Verdict
         (brief conclusion)""",
         pdf_text,
