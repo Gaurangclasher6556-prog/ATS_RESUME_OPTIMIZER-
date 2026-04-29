@@ -766,20 +766,21 @@ Return ONLY valid JSON.
     return _parse_json(raw)
 
 
-def simulate_code_run(question: str, code: str) -> dict:
-    """Simulate Python code execution and return terminal output as plain text."""
-    prompt = f"""You are a Python Sandbox execution environment and Code Judge.
+def simulate_code_run(question: str, code: str, language: str = "Python") -> dict:
+    """Simulate code execution and return terminal output as plain text, supporting multiple languages."""
+    prompt = f"""You are a strict Code Sandbox execution environment acting as a Judge0 server supporting 40+ languages.
 You are evaluating a user's code submission for the following problem:
 Problem: "{question}"
 
+Language: {language}
 User Code:
-```python
+```{language.lower()}
 {code}
 ```
 
-Task: Simulate executing this code against 3 distinct, hidden test cases (including edge cases).
-Output a realistic terminal log showing the execution. Show what the expected output was vs the actual output. 
-If there are syntax errors or runtime errors, print a realistic Python traceback.
+Task: Simulate executing this {language} code against 8-10 distinct, hidden test cases (including edge cases).
+Output a realistic terminal log showing the execution/compilation. Show what the expected output was vs the actual output. 
+If there are syntax errors or runtime errors, print a realistic stack trace for {language}.
 
 DO NOT use JSON. Return ONLY the raw terminal output text. Start directly with the terminal output.
 """

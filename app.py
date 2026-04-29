@@ -39,7 +39,7 @@ from pdf_generator import generate_ats_pdf, generate_ats_docx
 
 # ─── Page Config (MUST be first Streamlit call) ───────────────────────────────
 st.set_page_config(
-    page_title="ATS Resume Expert Pro",
+    page_title="Career Forge",
     page_icon="📄",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -170,7 +170,7 @@ def extract_text(file_bytes: bytes) -> str:
 # ─── Header ──────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="app-header">
-    <h1>📄 ATS Resume Expert Pro</h1>
+    <h1>📄 Career Forge</h1>
     <p>Analyze · Optimize · Build · Personalize — Beat every Applicant Tracking System</p>
 </div>
 """, unsafe_allow_html=True)
@@ -651,257 +651,24 @@ with tab5:
                         st.error(str(e))
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 6 — MOCK INTERVIEW COACH
+# TAB 6 — CAREER FORGE MOCK INTERVIEW MODULE
 # ══════════════════════════════════════════════════════════════════════════════
 with tab6:
-    st.markdown("### 🎤 AI Mock Interview Coach")
-    st.markdown(
-        '<div class="info-banner">🎯 Practice makes perfect! Our AI generates '
-        'tailored interview questions based on the job description and your resume, '
-        'then evaluates your answers with detailed feedback and scoring. '
-        'Get an ideal answer example for each question.</div>',
-        unsafe_allow_html=True,
+    import mock_interview_module
+    mock_interview_module.render_mock_interview_tab(
+        company_name=company_name,
+        target_role=target_role,
+        job_description=job_description,
+        need_resume_fn=need_resume,
+        need_jd_fn=need_jd,
+        safe_read_bytes_fn=safe_read_bytes,
+        extract_text_fn=extract_text
     )
-
-    # Initialize session state for interview
-    if "interview_questions" not in st.session_state:
-        st.session_state["interview_questions"] = None
-    if "interview_current_q" not in st.session_state:
-        st.session_state["interview_current_q"] = 0
-    if "interview_results" not in st.session_state:
-        st.session_state["interview_results"] = []
-    if "interview_pdf_text" not in st.session_state:
-        st.session_state["interview_pdf_text"] = ""
-
-    # Step 1: Generate questions
-    if st.session_state["interview_questions"] is None:
-        st.markdown("#### Interview Settings")
-        interview_round = st.selectbox(
-            "Select Interview Stage",
-            [
-                "Round 1: Data Structures & Algorithms (DSA)",
-                "Round 2: System Design / Architecture",
-                "Round 3: Technical Deep Dive & Core CS",
-                "Final Round: Behavioral & Leadership / Culture Fit",
-                "Mixed Round (DSA + Behavioral)"
-            ],
-            help="Tailors the mock interview questions to the specific type of interview."
-        )
-        if st.button("🎤 Start Mock Interview", use_container_width=True, key="btn_interview"):
-            if need_resume() and need_jd():
-                try:
-                    with st.spinner(f"🕵️ Researching {company_name or 'top tech'} interview patterns..."):
-                        research_context = research_company_interview_patterns(company_name, target_role, interview_round)
-
-                    with st.spinner(f"🤖 Preparing {company_name or 'your'} interview questions..."):
-                        pdf_bytes = safe_read_bytes()
-                        pdf_text = extract_text(pdf_bytes)
-                        st.session_state["interview_pdf_text"] = pdf_text
-                        questions = generate_interview_questions(
-                            pdf_text, 
-                            job_description, 
-                            company_name, 
-                            target_role, 
-                            interview_round,
-                            research_context
-                        )
-                        st.session_state["interview_questions"] = questions
-                        st.session_state["interview_current_q"] = 0
-                        st.session_state["interview_results"] = []
-                        st.rerun()
-                except Exception as e:
-                    st.error(str(e))
-    else:
-        questions = st.session_state["interview_questions"]
-        current_q = st.session_state["interview_current_q"]
-        results = st.session_state["interview_results"]
-
-        # Progress bar
-        total = len(questions)
-        answered = len(results)
-        st.progress(answered / total, text=f"Question {min(answered + 1, total)} of {total}")
-
-        if current_q < total:
-            q = questions[current_q]
-            cat_emoji = {
-                "behavioral": "💬", 
-                "dsa": "💻", 
-                "system_design": "🏛️", 
-                "technical_deep_dive": "🔧"
-            }.get(q.get("category", "behavioral").lower(), "❓")
-
-            st.markdown(f"""
-            <div style="background: linear-gradient(135deg, rgba(22,163,74,0.08), rgba(22,163,74,0.04));
-                        border: 1px solid rgba(22,163,74,0.2); border-radius: 12px;
-                        padding: 1.5rem; margin-bottom: 1rem;">
-                <div style="font-size: 0.8rem; color: #16a34a; font-weight: 600; margin-bottom: 0.5rem;">
-                    {cat_emoji} {q.get('category', 'General').upper()} QUESTION — {current_q + 1}/{total}
-                </div>
-                <div style="font-size: 1.15rem; font-weight: 600; color: #1e293b;">
-                    {q['question']}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            if q.get('category') == 'dsa':
-                st.markdown("**Write your code below (Python):**")
-                answer = st_ace(
-                    placeholder="def solve(nums, target):\\n    pass",
-                    language="python",
-                    theme="monokai",
-                    font_size=14,
-                    tab_size=4,
-                    min_lines=15,
-                    key=f"answer_ace_{current_q}"
-                )
-                
-                term_key = f"terminal_{current_q}"
-                if term_key not in st.session_state:
-                    st.session_state[term_key] = None
-                    
-                col_run, col_submit, col_skip = st.columns([1.5, 2, 1])
-                
-                with col_run:
-                    if st.button("▶️ Run Test Cases", use_container_width=True, key=f"run_{current_q}"):
-                        if answer.strip():
-                            with st.spinner("Executing code in sandbox..."):
-                                try:
-                                    res = simulate_code_run(q["question"], answer)
-                                    st.session_state[term_key] = res.get("terminal_output", "Execution failed to return output.")
-                                except Exception as e:
-                                    st.session_state[term_key] = f"Sandbox Error: {str(e)}"
-                        else:
-                            st.warning("Write some code first!")
-
-                if st.session_state[term_key]:
-                    st.markdown("💻 **Terminal Output:**")
-                    st.code(st.session_state[term_key], language="bash")
-                    
-            else:
-                answer = st.text_area(
-                    "Your Answer:",
-                    height=150,
-                    placeholder="Type your answer here... Be specific, use examples from your experience, or describe your system architecture clearly.",
-                    key=f"answer_{current_q}",
-                )
-                col_submit, col_skip = st.columns([3, 1])
-
-            with col_submit:
-                if st.button("📤 Submit Final Answer", use_container_width=True, key=f"submit_{current_q}"):
-                    if answer.strip():
-                        try:
-                            with st.spinner("🤖 Evaluating your answer..."):
-                                evaluation = evaluate_interview_answer(
-                                    q["question"], answer,
-                                    job_description,
-                                    st.session_state["interview_pdf_text"],
-                                )
-                            results.append({
-                                "question": q["question"],
-                                "category": q.get("category", ""),
-                                "answer": answer,
-                                "evaluation": evaluation,
-                            })
-                            st.session_state["interview_results"] = results
-                            st.session_state["interview_current_q"] = current_q + 1
-                            st.rerun()
-                        except Exception as e:
-                            st.error(str(e))
-                    else:
-                        st.warning("Please type an answer before submitting.")
-            with col_skip:
-                if st.button("⏭️ Skip", use_container_width=True, key=f"skip_{current_q}"):
-                    results.append({
-                        "question": q["question"],
-                        "category": q.get("category", ""),
-                        "answer": "(Skipped)",
-                        "evaluation": {"score": 0, "grade": "Skipped", "strengths": [],
-                                       "improvements": ["Question was skipped"],
-                                       "ideal_answer": "N/A", "tip": "Try to answer all questions."},
-                    })
-                    st.session_state["interview_results"] = results
-                    st.session_state["interview_current_q"] = current_q + 1
-                    st.rerun()
-
-            # Show previous results
-            if results:
-                st.markdown("---")
-                st.markdown("### 📋 Previous Answers")
-                for i, r in enumerate(results):
-                    ev = r["evaluation"]
-                    score = ev.get("score", 0)
-                    grade = ev.get("grade", "N/A")
-                    score_color = "#16a34a" if score >= 7 else "#eab308" if score >= 5 else "#ef4444"
-
-                    with st.expander(f"Q{i+1}: {r['question'][:60]}... — **{grade}** ({score}/10)", expanded=False):
-                        st.markdown(f"**Your Answer:** {r['answer'][:200]}...")
-                        st.markdown(f"**Score:** <span style='color:{score_color};font-weight:700;'>{score}/10 — {grade}</span>", unsafe_allow_html=True)
-                        if ev.get("strengths"):
-                            st.markdown("**✅ Strengths:** " + ", ".join(ev["strengths"]))
-                        if ev.get("improvements"):
-                            st.markdown("**📈 Improvements:** " + ", ".join(ev["improvements"]))
-                        st.markdown(f"**💡 Ideal Answer:** {ev.get('ideal_answer', 'N/A')}")
-
-        else:
-            # Interview complete — show final report
-            st.balloons()
-            st.markdown("## 🎉 Interview Complete!")
-
-            # Calculate overall score
-            scores = [r["evaluation"].get("score", 0) for r in results if r["evaluation"].get("score", 0) > 0]
-            avg_score = sum(scores) / len(scores) if scores else 0
-
-            # Score display
-            score_color = "#16a34a" if avg_score >= 7 else "#eab308" if avg_score >= 5 else "#ef4444"
-            st.markdown(f"""
-            <div style="text-align:center; padding:2rem; background:linear-gradient(135deg, rgba(22,163,74,0.1), rgba(22,163,74,0.05));
-                        border-radius:16px; margin:1rem 0;">
-                <div style="font-size:3rem; font-weight:700; color:{score_color};">{avg_score:.1f}/10</div>
-                <div style="font-size:1.1rem; color:#475569;">Overall Interview Score</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # Detailed results
-            for i, r in enumerate(results):
-                ev = r["evaluation"]
-                score = ev.get("score", 0)
-                grade = ev.get("grade", "N/A")
-                s_color = "#16a34a" if score >= 7 else "#eab308" if score >= 5 else "#ef4444"
-
-                with st.expander(f"Q{i+1}: {r['question'][:60]}... — **{grade}** ({score}/10)", expanded=(score < 7)):
-                    st.markdown(f"**Your Answer:** {r['answer']}")
-                    st.markdown(f"**Score:** <span style='color:{s_color};font-weight:700;'>{score}/10 — {grade}</span>", unsafe_allow_html=True)
-                    if ev.get("strengths"):
-                        st.markdown("**✅ Strengths:** " + ", ".join(ev["strengths"]))
-                    if ev.get("improvements"):
-                        st.markdown("**📈 To Improve:** " + ", ".join(ev["improvements"]))
-                    st.markdown(f"**💡 Ideal Answer:** {ev.get('ideal_answer', 'N/A')}")
-                    if ev.get("tip"):
-                        st.info(f"💡 **Tip:** {ev['tip']}")
-
-            # Generate AI report
-            if st.button("📊 Generate Full Performance Report", use_container_width=True):
-                try:
-                    with st.spinner("🤖 Generating your performance report..."):
-                        report = generate_interview_report(results)
-                    st.markdown("---")
-                    st.markdown(report)
-                except Exception as e:
-                    st.error(str(e))
-
-            # Reset button
-            if st.button("🔄 Start New Interview", use_container_width=True):
-                st.session_state["interview_questions"] = None
-                st.session_state["interview_current_q"] = 0
-                st.session_state["interview_results"] = []
-                st.session_state["interview_pdf_text"] = ""
-                st.rerun()
-
 
 # ─── Footer ──────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="footer">
     <hr style="border:none;border-top:1px solid #e2e8f0;margin:2rem 0 1rem;">
-    <p>© 2025 ATS Resume Expert Pro &nbsp;|&nbsp; Created by Gaurang Sharma</p>
+    <p>© 2026 Career Forge &nbsp;|&nbsp; Created by Gaurang Sharma</p>
 </div>
 """, unsafe_allow_html=True)
