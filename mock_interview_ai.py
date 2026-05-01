@@ -1,27 +1,36 @@
 import json
 import ai_handler
 from ai_handler import _call, _parse_json
-from duckduckgo_search import DDGS
+# Note: duckduckgo_search is imported lazily inside gather_realtime_intelligence
+# to prevent import errors on Streamlit Cloud if the package is unavailable
 
 def gather_realtime_intelligence(company, role):
     """Fetch real-time interview questions and trends for the company and role."""
     try:
-        query = f"site:leetcode.com/discuss/interview-question {company} {role} interview questions 2024 2025"
+        try:
+            from duckduckgo_search import DDGS
+        except ImportError:
+            return f"Real-time search unavailable (package not installed). Using AI knowledge for {company} {role} interview patterns."
+
+        query = f"{company} {role} interview questions coding problems 2024 2025"
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=5))
-            
+
+        if not results:
+            return f"No live results found. Falling back to general {company} interview knowledge."
+
         intelligence_text = "\n".join([f"- {r['title']}: {r['body']}" for r in results])
-        
+
         prompt = f"""You are a Career Intelligence Analyst. Summarize the following real-time search results into a concise 150-word report on the current interview trends, specific questions, and difficulty level for {company} {role}.
-        
+
         Search Results:
         {intelligence_text}
-        
+
         Return the summary as plain text."""
         return _call(prompt)
     except Exception as e:
         print(f"Intelligence gathering failed: {e}")
-        return "Real-time intelligence currently unavailable. Falling back to general company knowledge."
+        return f"Real-time intelligence currently unavailable ({type(e).__name__}). Falling back to general company knowledge."
 
 def generate_behavioral_question(company, role, history, jd, resume, realtime_intelligence=""):
     prompt = f"""You are a senior behavioral interviewer at {company}. Role: {role}.

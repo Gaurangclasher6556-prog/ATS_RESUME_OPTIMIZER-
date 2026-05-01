@@ -7,4 +7,4 @@ python-docx
 pandas
 openai
 streamlit-ace
-duckduckgo-search
+ddgs
