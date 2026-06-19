@@ -1,0 +1,25 @@
+# Core app
+streamlit==1.40.0
+google-generativeai==0.8.3
+openai==1.54.0
+python-dotenv==1.0.1
+pandas==2.2.3
+
+# PDF / DOCX generation & parsing
+PyMuPDF==1.24.10
+reportlab==4.2.5
+python-docx==1.1.2
+
+# Code editor widget (mock interview)
+streamlit-ace==0.1.1
+
+# Real-time interview intelligence (package was renamed: duckduckgo_search -> ddgs)
+ddgs==6.1.0
+
+# OCR fallback for image-based / scanned PDFs (optional but recommended;
+# also requires the system 'tesseract' binary to be installed)
+Pillow==10.4.0
+pytesseract==0.3.13
+
+# Note: the deterministic ATS scoring engine (ats_scorer.py) and persistence
+# layer (database.py) use only the Python standard library — no extra deps.
